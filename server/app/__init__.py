@@ -1,7 +1,7 @@
 
 from flask import Flask
 from config import config_dict
-from socket_events import register_socket_events, socketio
+from server.app.socket_events import register_socket_events, socketio
 
 
 def create_app(config_key='local'):
