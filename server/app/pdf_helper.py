@@ -10,7 +10,7 @@ from langchain.document_loaders import PyPDFLoader
 
 from config import config_dict
 from app.models import Message
-from app.helper import get_llm, users, get_config_data
+from app.helper import get_llm, users
 
 config = config_dict.get('local')
 

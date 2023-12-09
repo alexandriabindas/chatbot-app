@@ -1,5 +1,6 @@
 import logging
 
+
 class Development:
     """Local config"""
     # Database configurations

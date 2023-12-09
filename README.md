@@ -4,4 +4,4 @@
 
 ### Server
 
-Run `cd server && source venv/bin/activate && flask run -p 8080 --debug`
+- `cd server && pip3 install -r requirements.txt && source venv/bin/activate && flask run --debugger -p 8080`
