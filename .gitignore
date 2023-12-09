@@ -1,0 +1,19 @@
+# Ignore compiled Python files
+server/*.pyc
+
+# Ignore Python cache directories
+server/__pycache__/
+server/app/__pycache__/
+server/app/api/__pycache__/
+
+# Ignore virtual environment directory
+venv/
+
+# Ignore Visual Studio Code settings
+.vscode/
+
+# Ignore PyCharm settings
+.idea/
+
+# Ignore log files
+*.log
