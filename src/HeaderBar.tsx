@@ -5,17 +5,29 @@ import DocumentPicker, {
 import {StyleSheet, Text, View} from 'react-native';
 import CheckboxBar from './CheckBoxBar';
 
-const HeaderBar = ({document}: {document: DocumentPickerResponse}) => {
-//   const pickDocument = () => {
-//     DocumentPicker.pickSingle().then((document: DocumentPickerResponse) => {
-//       setDocument(document);
-//     });
-//   };
+interface IData {
+  embedding?: string;
+  loader?: string;
+  document?: string;
+}
 
+interface IProps {
+  document?: DocumentPickerResponse;
+  data?: IData;
+}
+const HeaderBar = ({data, document}: IProps) => {
   return (
     <View style={styles.container}>
       {/* <CheckboxBar /> */}
-      <Text>{document?.name}</Text>
+      <Text style={{fontStyle: 'italic'}}>{document?.name || 'No file selected'}</Text>
+      <>
+        {data &&
+          Object.keys(data).map((key: string) => (
+            <Text key={key}>
+              {key}: {data[key]}
+            </Text>
+          ))}
+      </>
     </View>
   );
 };
