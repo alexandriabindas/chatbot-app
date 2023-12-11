@@ -8,25 +8,33 @@ import CheckboxBar from './CheckBoxBar';
 interface IData {
   embedding?: string;
   loader?: string;
-  document?: string;
+  document?: DocumentPickerResponse;
 }
 
 interface IProps {
   document?: DocumentPickerResponse;
   data?: IData;
 }
-const HeaderBar = ({data, document}: IProps) => {
+const HeaderBar = ({data}: IProps) => {
   return (
     <View style={styles.container}>
       {/* <CheckboxBar /> */}
-      <Text style={{fontStyle: 'italic'}}>{document?.name || 'No file selected'}</Text>
+      <Text style={{fontStyle: 'italic'}}>
+        {data?.document?.name || 'No file selected'}
+      </Text>
       <>
         {data &&
-          Object.keys(data).map((key: string) => (
-            <Text key={key}>
-              {key}: {data[key]}
-            </Text>
-          ))}
+          Object.keys(data).map((key: string) => {
+            if (key !== 'document') {
+              return (
+                <Text key={key}>
+                  {key}: {data[key]}
+                </Text>
+              );
+            } else {
+              return null;
+            }
+          })}
       </>
     </View>
   );

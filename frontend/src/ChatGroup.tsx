@@ -5,79 +5,49 @@ import DocumentPicker, {
   DocumentPickerResponse,
 } from 'react-native-document-picker';
 import uuid from 'react-native-uuid';
-import {App, SocketReceiveEvent, SocketSendEvents, defaultUser} from './types';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {storeNewMessage} from './helper';
 
 interface IProps {
   activeBots: string[];
   onSetDocument: (doc: DocumentPickerResponse | undefined) => void;
   onSetData: (data: any) => void;
   document?: DocumentPickerResponse;
-  app: App;
 }
 
-export interface IMessageOverride extends IMessage {
+const defaultUser = {
+  _id: 'alex',
+  name: 'Alex',
+};
+
+interface IMessageOverride extends IMessage {
   data?: any;
   configId?: string;
 }
-const Chat = ({onSetData, app, activeBots, onSetDocument}: IProps) => {
+const ChatGroup = ({onSetData, activeBots, onSetDocument}: IProps) => {
   const [messages, setMessages] = useState<IMessageOverride[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-
-  useEffect(() => {
-    // Load chat messages when the screen is focused
-    const loadChatMessages = async () => {
-      const storedMessages = await AsyncStorage.getItem(app.appName);
-      const systemMessages = await AsyncStorage.getItem('system');
-      if (storedMessages && systemMessages) {
-        setMessages([
-          ...JSON.parse(storedMessages),
-          ...JSON.parse(systemMessages),
-        ]);
-      } else if (storedMessages) {
-        setMessages([...JSON.parse(storedMessages)]);
-      } else if (systemMessages) {
-        setMessages([...JSON.parse(systemMessages)]);
-      }
-    };
-
-    loadChatMessages();
-  }, []);
-
-  useEffect(() => {
-    // Save chat messages when they change
-    const saveChatMessages = async () => {
-      await AsyncStorage.setItem(app.appName, JSON.stringify(messages));
-    };
-    saveChatMessages();
-  }, [messages]);
 
   useEffect(() => {
     function onTyping(typing: boolean) {
       setIsTyping(typing);
     }
     function onMessage(message: IMessageOverride) {
-      if (app.appName === message.user._id) {
-        setMessages(previousMessages =>
-          GiftedChat.append(previousMessages, {
-            ...message,
-            // @ts-ignore
-            createdAt: new Date(),
-          }),
-        );
-      } else {
-        storeNewMessage(message);
-      }
+      setMessages(previousMessages =>
+        GiftedChat.append(previousMessages, {
+          ...message,
+          // @ts-ignore
+          createdAt: new Date(),
+        }),
+      );
     }
     function onConfigUpdateSuccess(message: IMessageOverride) {
+      console.log('onConfigUpdateSuccess', onConfigUpdateSuccess);
       message._id = uuid.v4().toString();
       message?.data && onSetData(message?.data);
       onMessage(message);
     }
-    socket.on(SocketReceiveEvent.ConfigUpdate, onConfigUpdateSuccess);
+    socket.on('config_update', onConfigUpdateSuccess);
     socket.on('message', onMessage);
-    socket.on(SocketReceiveEvent.Typing, onTyping);
+    socket.on('typing', onTyping);
     return () => {
       socket.off('message');
       socket.off('typing');
@@ -104,17 +74,17 @@ const Chat = ({onSetData, app, activeBots, onSetDocument}: IProps) => {
     const messageText = newMessage.text;
     if (messageText === '/pdf') {
       pickDocument();
-    } else if (messageText.includes(SocketSendEvents.Config)) {
-      const loader = messageText.split(SocketSendEvents.Config)[1];
-      socket.emit(SocketSendEvents.Config, loader);
+    } else if (messageText.includes('/config')) {
+      const loader = messageText.split('/config ')[1];
+      socket.emit('/config', loader);
     } else {
       const message = {
         // prompt: 'What do you know about the document in 2 sentences?',
         prompt: messageText,
-        active_bots: activeBots,
+        active_bots: ['llama2', 'llama2-uncensored'],
         user: defaultUser,
       };
-      socket.emit(SocketSendEvents.SendMessage, message);
+      socket.emit('send_message', message);
     }
     setMessages(previousMessages =>
       GiftedChat.append(previousMessages, {
@@ -135,4 +105,4 @@ const Chat = ({onSetData, app, activeBots, onSetDocument}: IProps) => {
   );
 };
 
-export default Chat;
+export default ChatGroup;

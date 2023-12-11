@@ -1,36 +1,35 @@
-import React, {useState} from 'react';
-import {SafeAreaView, StyleSheet, useColorScheme, View} from 'react-native';
+import React from 'react';
+import {SafeAreaView, StyleSheet, useColorScheme} from 'react-native';
 import {Colors} from 'react-native/Libraries/NewAppScreen';
+import {NavigationContainer} from '@react-navigation/native';
+import {createStackNavigator} from '@react-navigation/stack';
+import ChatScreen from './ChatScreen';
+import StyleganScreen from './StylganScreen';
+import HomeScreen from './HomeScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {socket} from './socket';
+import ChatGroup from './ChatGroup';
+import ChatGroupScreen from './ChatGroupScreen';
 
-import HeaderBar from './HeaderBar';
-import ChatScreen from './Chat';
-import {DocumentPickerResponse} from 'react-native-document-picker';
+const Stack = createStackNavigator();
 
-const defaultActiveBots = ['llama2', 'openchat', 'llama2-uncensored'];
-// const defaultActiveBots = ['llama2', 'llama2-uncensored'];
-const defaultUser = {
-  _id: 1,
-  name: 'Alex',
-};
+const apps = [
+  {
+    appName: 'openchat',
+    display: 'Open Chat',
+  },
+  {
+    appName: 'llama2',
+    display: 'Llama2',
+  },
+  {
+    appName: 'llama2-uncensored',
+    display: 'Llama2 Uncensored',
+  },
+];
+
 function App(): JSX.Element {
-  const [document, setDocument] = useState<DocumentPickerResponse>();
-  const [data, setData] = useState<any>();
-  const [isAppReady, setAppReady] = useState(false);
-
-  React.useEffect(() => {
-    socket.emit('join_chat', {
-      active_bots: defaultActiveBots,
-      user: defaultUser,
-    });
-
-    fetch('http://localhost:8080/api/v1/config')
-      .then(response => response.json())
-      .then(res => {
-        setData(res);
-      });
-    setAppReady(true);
-  }, []);
+  const [readyApps, setReadyApps] = React.useState<string[]>([]);
 
   const isDarkMode = useColorScheme() === 'dark';
   const styles = StyleSheet.create({
@@ -41,37 +40,46 @@ function App(): JSX.Element {
     content: {backgroundColor: '#ffffff', flex: 1, paddingTop: 10},
   });
 
-  React.useEffect(() => {
-    if (isAppReady) {
-      socket.emit('document', {
-        document: document,
-        user: {
-          _id: 1,
-          name: 'Alex',
-        },
-      });
-    }
-  }, [document]);
-
-  const onSetDocument = (doc: DocumentPickerResponse | undefined): void => {
-    setDocument(doc);
+  const onAppIsReady = (appName: string) => {
+    setReadyApps([...readyApps, appName]);
   };
 
-  const onSetData = (data: any | undefined): void => {
-    setData(data);
+  const clearAllReadyApps = () => {
+    setReadyApps([]);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <HeaderBar data={data} document={document} />
-        <ChatScreen
-          onSetData={onSetData}
-          onSetDocument={onSetDocument}
-          document={document}
-          activeBots={defaultActiveBots}
-        />
-      </View>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Home">
+          <Stack.Screen name="Home">
+            {props => (
+              <HomeScreen
+                {...props}
+                apps={apps}
+                clearAllReadyApps={clearAllReadyApps}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="ChatGroup" component={ChatGroupScreen} />
+          <Stack.Screen name="ChatBotLlamaUnscensored" component={ChatScreen} />
+          {apps.map(app => (
+            <Stack.Screen key={app.appName} name={app.appName}>
+              {props => (
+                <ChatScreen
+                  {...props}
+                  isAppReady={readyApps.includes(app.appName)}
+                  onAppIsReady={onAppIsReady}
+                  appName={app.appName}
+                  app={app}
+                />
+              )}
+            </Stack.Screen>
+          ))}
+
+          <Stack.Screen name="ComputerVision" component={StyleganScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
     </SafeAreaView>
   );
 }

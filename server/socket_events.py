@@ -1,19 +1,32 @@
 from flask import request
-from flask_socketio import SocketIO, emit, join_room
-from config import config_dict, logging
-from app.helper import ask_bot, generate_join_chat_messages, create_system_message, create_bot_message, get_config_data
-from app.pdf_helper import ask_bot_about_pdf, loaders, embeddings
-from app.models import Message, File
-
-config = config_dict.get('local')
-model = config.MODEL
+from flask_socketio import SocketIO, emit
+from config import Config
+from app.helper import get_users_list, create_system_message, create_bot_message, get_config_data
+from app.models import Message, File, ToClientEvents, embeddings, loaders
+from app.chatbot_singleton import ChatbotManager
 
 socketio = SocketIO()
+config = Config.get_config()
 
 
-def send_update_config_to_client(text: str = 'Success'):
-    system_message = create_system_message(text, data=get_config_data())
-    emit('config_update_success', system_message)
+def generate_join_chat_messages(active_bots):
+    messages = []
+    users = get_users_list(active_bots)
+    for user in users:
+        name = user.get('name')
+        system_message = create_system_message(f"{name} has entered the chat.", 'alex')
+        messages.append(system_message)
+    return messages
+
+def _send_system_message_with_config(text: str = 'Success', user_ids=['openchat', 'llama2', 'llama2-uncensored'], ):
+    for user_id in user_ids:
+        system_message = create_system_message(text, user_id, data=get_config_data())
+        print("system_message", system_message)
+        emit(ToClientEvents.CONFIG_UPDATE.value, system_message)
+
+
+def _send_message_to_client(text: str):
+    emit(ToClientEvents.MESSAGE.value, text)
 
 
 def register_socket_events():
@@ -26,17 +39,16 @@ def register_socket_events():
     def handle_disconnect():
         print('Client disconnected:', request.sid)
 
-    @socketio.on('join_chat')
+
+    @socketio.on('join_group')
     def on_join(data):
-        user = data['user']['name']
-        room = data.get('room')
+        user = data['user']['_id']
         active_bots = data.get('active_bots')
         all_active = [user, *active_bots]
-        join_room(room)
+        print(all_active)
         messages = generate_join_chat_messages(all_active)
-        print(messages)
-        for message in messages:
-            emit('message', message)
+        for msg in messages:
+            emit('message', msg)
         config.document = None
 
     @socketio.on('update_config')
@@ -48,69 +60,83 @@ def register_socket_events():
         if 'loader' in message_id:
             config.loader = value
         elif 'embedding' in message_id:
-            embedding_config = embeddings.get(value)
             config.embedding_id = value
-            config.embedding = embedding_config.get('class')
         config_id = message_id.split('_')[0]
-        send_update_config_to_client(f'Successfully updated {config_id} to {value}')
+        _send_system_message_with_config(f'Successfully updated {config_id} to {value}', ['system'])
 
-    @socketio.on('config')
-    def handle_config_call(config_id: str):
-        values = []
-        if config_id in 'loader':
-            message = create_bot_message(user_id='alex', text='Select a PDF loader')
-            for k, v in loaders.items():
-                values.append({
-                    'title': v.get('title'),
-                    'value': v.get('value')
-                })
-        if config_id in 'embeddings':
-            message = create_bot_message(user_id='alex', text='Select an embedding function')
-            for k, v in embeddings.items():
-                values.append({
-                    'title': v.get('title'),
-                    'value': v.get('value'),
-                })
-        message['quickReplies'] = {
-                'type': 'radio',
-                'values': values,
-                'keepIt': False,
-        }
+    @socketio.on('/config')
+    def handle_config(config_id: str):
+        message_text = 'Select a PDF loader' if 'loader' in config_id else 'Select an embedding function'
+        _config = loaders if 'loader' in config_id else embeddings
+        print(_config)
+        values = [{'title': v.get('title'), 'value': v.get('value')} for k, v in _config.items()]
+        message = create_bot_message(user_id='alex', text=message_text)
+        message['quickReplies'] = {'type': 'radio', 'values': values, 'keepIt': False}
         message['_id'] = f"{config_id}_{message.get('_id')}"
-        emit('message', message)
+        _send_message_to_client(message)
 
     @socketio.on('document')
     def handle_document(data: dict):
+        '''
+        This should handle a user selecting or unselecting a document.
+        NOTE: This document is set on the global scope and will dictate the PDF in context
+        for the llms.
+        '''
         document = data.get('document')
-        if not document:
+        system_message = None
+        if not document and config.document:
             config.document = None
-            logging.debug("Removing document from config")
-            system_message = create_system_message("File removed. You may still ask general questions.")
-        else:
+            # print("Removing document from config")
+            # system_message = create_system_message("File removed. You may still ask general questions.")
+        elif document:
             local_uri = f"./app/data/{document.get('name')}"
             file = File(**document, local_uri=local_uri)
             config.document = file
-            logging.debug(f"Added {config.document.name} to config.document")
-            system_message = create_system_message(f'You may now ask questions about {config.document.name}.')
-        send_update_config_to_client('Successfully updated document.')
-        emit('message', system_message)
+            print(f"Added {config.document.name} to config.document")
+            for user_id in ['openchat', 'llama2', 'llama2-uncensored']:
+                system_message = create_system_message(f'You may now ask questions about {config.document.name}.', user_id)
+                _send_message_to_client(system_message)
+            _send_system_message_with_config('Successfully updated document.')
+
+    @socketio.on('document-group')
+    def handle_document(data: dict):
+        '''
+        This should handle a user selecting or unselecting a document.
+        NOTE: This document is set on the global scope and will dictate the PDF in context
+        for the llms.
+        '''
+        document = data.get('document')
+        system_message = None
+        if not document and config.document:
+            config.document = None
+            # print("Removing document from config")
+            # system_message = create_system_message("File removed. You may still ask general questions.")
+        elif document:
+            local_uri = f"./app/data/{document.get('name')}"
+            file = File(**document, local_uri=local_uri)
+            config.document = file
+            print(f"Added {config.document.name} to config.document")
+            system_message = create_system_message(f'You may now ask questions about {config.document.name}.', 'system')
+            _send_message_to_client(system_message)
+            _send_system_message_with_config('Successfully updated document.', ['alex'])
 
     @socketio.on('send_message')
-    def handle_message_from_client(data: dict):
-        emit('typing', True)
+    def handle_send_message(data: dict):
+        print("ToClientEvents.TYPING", ToClientEvents.TYPING.value)
+        emit(ToClientEvents.TYPING.value, True)
         message = Message(**data)
         print("Message", message)
-        # g.file = message.file
-        for bot_name in message.active_bots:
+        for id in message.active_bots:
+            chatbot = ChatbotManager().get_or_create_instance(id)
             try:
                 if not config.document:
-                    response = ask_bot(model=bot_name, prompt=message.prompt)
+                    response = chatbot.ask_question(message.prompt)
                 else:
-                    response = ask_bot_about_pdf(model=bot_name, message=message)
+                    response = chatbot.ask_bot_about_pdf(message)
             except Exception as e:
-                response = create_bot_message(user_id=bot_name,
-                                              text="Sorry, there is something wrong.")
+                response = create_bot_message(user_id=id, text="Sorry, there is something wrong.")
                 print("Error", e)
-            print(f"{bot_name}_response", response)
-            emit('message', response)
-        emit('typing', False)
+
+            print(f"{id}_response", response)
+            _send_message_to_client(response)
+        emit(ToClientEvents.TYPING.value, False)
