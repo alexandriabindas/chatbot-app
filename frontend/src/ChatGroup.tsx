@@ -81,7 +81,7 @@ const ChatGroup = ({onSetData, activeBots, onSetDocument}: IProps) => {
       const message = {
         // prompt: 'What do you know about the document in 2 sentences?',
         prompt: messageText,
-        active_bots: ['llama2', 'llama2-uncensored'],
+        active_bots: activeBots,
         user: defaultUser,
       };
       socket.emit('send_message', message);

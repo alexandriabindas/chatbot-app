@@ -1,7 +1,7 @@
 from enum import Enum
 
 from pydantic import BaseModel, Field
-from langchain.embeddings import GPT4AllEmbeddings, OpenAIEmbeddings
+from langchain.embeddings import GPT4AllEmbeddings, OpenAIEmbeddings, OllamaEmbeddings
 from langchain.document_loaders import UnstructuredPDFLoader, PyPDFLoader
 
 
@@ -39,6 +39,11 @@ embeddings = {
         'title': 'GPT4AllEmbeddings',
         'value': 'gpt-4',
         'class': GPT4AllEmbeddings
+    },
+     'ollama': {
+        'title': 'OllamaEmbeddings',
+        'value': 'ollama',
+        'class': OllamaEmbeddings
     },
     'openai': {
         'title': 'OpenAIEmbeddings',

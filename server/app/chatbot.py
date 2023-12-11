@@ -1,14 +1,13 @@
 from uuid import uuid4
-from langchain.llms import Ollama
+from langchain.llms.ollama import Ollama
 from langchain.chains.retrieval_qa.base import BaseRetrievalQA, RetrievalQA
 from config import Config
 from app.helper import create_bot_message, get_users_list
 from app.models import Message, loaders, embeddings
-from app.pdf_helper import PDFHelper
 from langchain.embeddings import GPT4AllEmbeddings, OpenAIEmbeddings, OllamaEmbeddings
 from langchain.document_loaders import UnstructuredPDFLoader, PyPDFLoader
-from langchain.vectorstores import Chroma
-from langchain import PromptTemplate
+from langchain.vectorstores.chroma import Chroma
+from langchain.prompts import PromptTemplate
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.manager import CallbackManager
@@ -36,29 +35,6 @@ class ChatBot:
         documents = pdf_loader.load()
         return documents
 
-    def ask_question(self, prompt: str):
-        reply = self.llm(prompt)
-        return create_bot_message(user_id=self.id, text=reply)
-
-    def ask_bot_about_pdf(self, message: Message):
-        id = str(uuid4())
-        chain = self._build_qa_chain_for_pdf()
-        response = chain({"query": message.prompt})
-        return {"_id": id, "text": response.get("result"), "user": self.user}
-
-    def build_vectorstore_with_embedding(self):
-        print('Getting vectorstore')
-        embedding_object = GPT4AllEmbeddings
-        if config.embedding_id == 'openai':
-            embedding_object = OpenAIEmbeddings # Token expired
-        db_vectorstore_path = f"{config.VECTORSTORE_DB_PATH}/{config.document.name}"
-        documents = self._get_documents_from_global_config()
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=100)
-        all_splits = text_splitter.split_documents(documents)
-        vectorstore = Chroma.from_documents(documents=all_splits, embedding=GPT4AllEmbeddings())
-        # vectorstore = Chroma.from_documents(persist_directory=db_vectorstore_path, embedding_function=embedding_object())
-        return vectorstore
-
     @staticmethod
     def build_prompt_qa_template():
         template = """Use the following pieces of context to answer the question at the end.
@@ -73,7 +49,6 @@ class ChatBot:
         )
         return QA_CHAIN_PROMPT
 
-
     def _build_qa_chain_for_pdf(self) -> BaseRetrievalQA:
         vectorstore = self.build_vectorstore_with_embedding()
         qa_chain_prompt_template = self.build_prompt_qa_template()
@@ -84,3 +59,27 @@ class ChatBot:
             return_source_documents=False,
         )
         return qa_chain
+
+    def build_vectorstore_with_embedding(self):
+        print('Getting vectorstore')
+        embedding_object = GPT4AllEmbeddings
+        if config.embedding_id == 'openai':
+            embedding_object = OpenAIEmbeddings # Token expired
+        elif config.embedding_id == 'ollama':
+            embedding_object = OllamaEmbeddings
+        db_vectorstore_path = f"{config.VECTORSTORE_DB_PATH}/{config.embedding_id}/{config.document.name}"
+        documents = self._get_documents_from_global_config()
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=100)
+        all_splits = text_splitter.split_documents(documents)
+        vectorstore = Chroma.from_documents(documents=all_splits, embedding=embedding_object(), persist_directory=db_vectorstore_path)
+        # vectorstore = Chroma.from_documents(persist_directory=db_vectorstore_path, embedding_function=embedding_object())
+        return vectorstore
+    def ask_question(self, prompt: str):
+        reply = self.llm(prompt)
+        return create_bot_message(user_id=self.id, text=reply)
+
+    def ask_bot_about_pdf(self, message: Message):
+        id = str(uuid4())
+        chain = self._build_qa_chain_for_pdf()
+        response = chain({"query": message.prompt})
+        return {"_id": id, "text": response.get("result"), "user": self.user}

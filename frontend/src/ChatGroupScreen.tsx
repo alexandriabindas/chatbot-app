@@ -7,7 +7,7 @@ import Chat from './Chat';
 import {defaultUser} from './types';
 import ChatGroup from './ChatGroup';
 
-// const defaultActiveBots = ['llama2', 'openchat', 'llama2-uncensored'];
+const defaultActiveBots = ['llama2', 'openchat', 'llama2-uncensored'];
 // const defaultActiveBots = ['llama2-uncensored'];
 
 const ChatGroupScreen = ({app}: any) => {
@@ -18,7 +18,7 @@ const ChatGroupScreen = ({app}: any) => {
   React.useEffect(() => {
     if (!isReady) {
       socket.emit('join_group', {
-        active_bots: ['llama2', 'llama2-uncensored'],
+        active_bots: defaultActiveBots,
         user: defaultUser,
       });
       onAppIsReady(true);
@@ -52,7 +52,7 @@ const ChatGroupScreen = ({app}: any) => {
         onSetData={onSetData}
         onSetDocument={onSetDocument}
         document={document}
-        activeBots={['llama2', 'llama2-uncensored']}
+        activeBots={defaultActiveBots}
       />
     </View>
   );
